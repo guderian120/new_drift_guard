@@ -1,0 +1,6 @@
+django
+django-htmx
+google-genai
+python-dotenv
+markdown
+boto3

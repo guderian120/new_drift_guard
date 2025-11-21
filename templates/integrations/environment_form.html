@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ action|default:"Add" }} Environment - DriftGuard{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="bg-gray-800 shadow sm:rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg leading-6 font-medium text-white">{{ action|default:"Add New" }} Environment</h3>
+            <div class="mt-2 max-w-xl text-sm text-gray-400">
+                <p>{% if action == "Update" %}Update the environment configuration. Credentials will be validated.{%
+                    else %}Configure a new cloud environment. Credentials will be validated immediately.{% endif %}</p>
+            </div>
+            <form class="mt-5 space-y-6" method="POST">
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                <div class="rounded-md bg-red-50 p-4 mb-4">
+                    <div class="flex">
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-red-800">Validation Error</h3>
+                            <div class="mt-2 text-sm text-red-700">
+                                {{ form.non_field_errors }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Name Field -->
+                <div>
+                    <label for="{{ form.name.id_for_label }}"
+                        class="block text-sm font-medium text-gray-300">Environment Name</label>
+                    <div class="mt-1">
+                        {{ form.name }}
+                    </div>
+                    {% if form.name.errors %}
+                    <p class="mt-2 text-sm text-red-500">{{ form.name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Provider Field -->
+                <div>
+                    <label for="{{ form.provider.id_for_label }}" class="block text-sm font-medium text-gray-300">Cloud
+                        Provider</label>
+                    <div class="mt-1">
+                        {{ form.provider }}
+                    </div>
+                </div>
+
+                <!-- AWS Credentials Section -->
+                <div id="aws-credentials" class="space-y-6 border-l-2 border-indigo-500 pl-4 ml-1">
+                    <h4 class="text-sm font-medium text-indigo-400 uppercase tracking-wider">AWS Configuration</h4>
+                    <div>
+                        <label for="{{ form.aws_access_key.id_for_label }}"
+                            class="block text-sm font-medium text-gray-300">AWS Access Key ID</label>
+                        <div class="mt-1">
+                            {{ form.aws_access_key }}
+                        </div>
+                        {% if form.aws_access_key.errors %}
+                        <p class="mt-2 text-sm text-red-500">{{ form.aws_access_key.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <label for="{{ form.aws_secret_key.id_for_label }}"
+                            class="block text-sm font-medium text-gray-300">AWS Secret Access Key</label>
+                        <div class="mt-1">
+                            {{ form.aws_secret_key }}
+                        </div>
+                        {% if form.aws_secret_key.errors %}
+                        <p class="mt-2 text-sm text-red-500">{{ form.aws_secret_key.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- GCP Placeholder -->
+                <div id="gcp-credentials" class="hidden space-y-6 border-l-2 border-green-500 pl-4 ml-1">
+                    <h4 class="text-sm font-medium text-green-400 uppercase tracking-wider">GCP Configuration</h4>
+                    <p class="text-sm text-gray-400">Service Account JSON upload will be available in the next update.
+                    </p>
+                </div>
+
+                <!-- Azure Placeholder -->
+                <div id="azure-credentials" class="hidden space-y-6 border-l-2 border-blue-500 pl-4 ml-1">
+                    <h4 class="text-sm font-medium text-blue-400 uppercase tracking-wider">Azure Configuration</h4>
+                    <p class="text-sm text-gray-400">Service Principal configuration will be available in the next
+                        update.</p>
+                </div>
+
+                <!-- IaC Repo -->
+                <div>
+                    <label for="{{ form.iac_repo_url.id_for_label }}"
+                        class="block text-sm font-medium text-gray-300">Infrastructure Repo URL</label>
+                    <div class="mt-1">
+                        {{ form.iac_repo_url }}
+                    </div>
+                    <p class="mt-2 text-sm text-gray-500">{{ form.iac_repo_url.help_text }}</p>
+                    {% if form.iac_repo_url.errors %}
+                    <p class="mt-2 text-sm text-red-500">{{ form.iac_repo_url.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div class="flex justify-end pt-4">
+                    <a href="{% url 'integrations:list' %}"
+                        class="bg-gray-700 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 mr-3">
+                        Cancel
+                    </a>
+                    <button type="submit"
+                        class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        {% if action == "Update" %}Update Environment{% else %}Validate & Save{% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const providerSelect = document.getElementById('{{ form.provider.id_for_label }}');
+        const awsSection = document.getElementById('aws-credentials');
+        const gcpSection = document.getElementById('gcp-credentials');
+        const azureSection = document.getElementById('azure-credentials');
+
+        function updateVisibility() {
+            const value = providerSelect.value;
+            awsSection.classList.add('hidden');
+            gcpSection.classList.add('hidden');
+            azureSection.classList.add('hidden');
+
+            if (value === 'AWS') {
+                awsSection.classList.remove('hidden');
+            } else if (value === 'GCP') {
+                gcpSection.classList.remove('hidden');
+            } else if (value === 'Azure') {
+                azureSection.classList.remove('hidden');
+            }
+        }
+
+        providerSelect.addEventListener('change', updateVisibility);
+        updateVisibility(); // Initial state
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block title %}Drifts - DriftGuard{% endblock %}
+
+{% block content %}
+<div class="bg-gray-800 shadow overflow-hidden sm:rounded-md">
+    <div class="px-4 py-5 border-b border-gray-700 sm:px-6 flex justify-between items-center">
+        <div>
+            <h3 class="text-lg leading-6 font-medium text-white">Detected Drifts</h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-400">List of all infrastructure drift events detected.</p>
+        </div>
+        <form method="POST" action="{% url 'drifts:scan' %}">
+            {% csrf_token %}
+            <button type="submit"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                <svg class="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                Scan Now
+            </button>
+        </form>
+    </div>
+    <ul role="list" class="divide-y divide-gray-700">
+        {% for drift in drifts %}
+        <li>
+            <a href="{% url 'drifts:detail' drift.id %}"
+                class="block hover:bg-gray-700 transition duration-150 ease-in-out">
+                <div class="px-4 py-4 sm:px-6">
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm font-medium text-indigo-400 truncate">{{ drift.resource_name }}</p>
+                        <div class="ml-2 flex-shrink-0 flex">
+                            <p class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                {% if drift.severity == 'critical' %}bg-red-100 text-red-800
+                                {% elif drift.severity == 'high' %}bg-orange-100 text-orange-800
+                                {% else %}bg-green-100 text-green-800{% endif %}">
+                                {{ drift.severity|title }}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="mt-2 sm:flex sm:justify-between">
+                        <div class="sm:flex">
+                            <p class="flex items-center text-sm text-gray-300">
+                                {{ drift.resource_type }}
+                            </p>
+                            <p class="mt-2 flex items-center text-sm text-gray-300 sm:mt-0 sm:ml-6">
+                                {{ drift.cloud_provider }}
+                            </p>
+                        </div>
+                        <div class="mt-2 flex items-center text-sm text-gray-400 sm:mt-0">
+                            <p>
+                                Detected on <time datetime="{{ drift.detected_at }}">{{ drift.detected_at }}</time>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}

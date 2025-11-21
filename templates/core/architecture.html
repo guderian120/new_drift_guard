@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+
+{% block title %}Architecture - DriftGuard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    {% if diagrams %}
+    <!-- Environment Architecture Diagrams -->
+    <div class="bg-gray-800 shadow overflow-hidden sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6">
+            <h3 class="text-lg leading-6 font-medium text-white">Infrastructure Architecture</h3>
+            <p class="mt-1 text-sm text-gray-400">Visual representation of your cloud infrastructure from IaC
+                repositories</p>
+        </div>
+
+        <!-- Environment Tabs -->
+        <div class="border-t border-gray-700">
+            <nav class="flex space-x-4 px-4 pt-4" aria-label="Tabs">
+                {% for env_id, env_data in diagrams.items %}
+                <button onclick="showEnvironment({{ env_id }})" id="tab-{{ env_id }}"
+                    class="env-tab px-3 py-2 text-sm font-medium rounded-t-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
+                    {{ env_data.name }} ({{ env_data.provider }})
+                </button>
+                {% endfor %}
+            </nav>
+        </div>
+
+        <!-- Environment Diagrams -->
+        {% for env_id, env_data in diagrams.items %}
+        <div id="env-{{ env_id }}" class="env-diagram hidden border-t border-gray-700 px-4 py-5">
+            <!-- Resource Count Summary -->
+            {% if env_data.resource_count %}
+            <div class="mb-4 flex gap-4 text-sm">
+                {% if env_data.resource_count.vpcs %}
+                <span class="text-gray-400">
+                    <span class="font-semibold text-white">{{ env_data.resource_count.vpcs }}</span> VPC(s)
+                </span>
+                {% endif %}
+                {% if env_data.resource_count.ec2_instances %}
+                <span class="text-gray-400">
+                    <span class="font-semibold text-white">{{ env_data.resource_count.ec2_instances }}</span> EC2
+                    Instance(s)
+                </span>
+                {% endif %}
+                {% if env_data.resource_count.rds_instances %}
+                <span class="text-gray-400">
+                    <span class="font-semibold text-white">{{ env_data.resource_count.rds_instances }}</span> RDS
+                    Instance(s)
+                </span>
+                {% endif %}
+                {% if env_data.resource_count.load_balancers %}
+                <span class="text-gray-400">
+                    <span class="font-semibold text-white">{{ env_data.resource_count.load_balancers }}</span> Load
+                    Balancer(s)
+                </span>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Mermaid Diagram -->
+            <div class="bg-white rounded-lg p-6 overflow-x-auto">
+                <div class="mermaid">
+                    {{ env_data.diagram }}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% elif has_environments %}
+    <!-- Has environments but no diagrams -->
+    <div class="bg-gray-800 shadow overflow-hidden sm:rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <div class="text-center py-10">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h3 class="mt-2 text-sm font-medium text-gray-300">No IaC Repositories Configured</h3>
+                <p class="mt-1 text-sm text-gray-500">
+                    Add an IaC repository URL to your environments to visualize their architecture.
+                </p>
+                <div class="mt-6">
+                    <a href="{% url 'integrations:list' %}"
+                        class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                        Configure Environments
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- No environments at all -->
+    <div class="bg-gray-800 shadow overflow-hidden sm:rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <div class="text-center py-10">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                <h3 class="mt-2 text-sm font-medium text-gray-300">No Environments Configured</h3>
+                <p class="mt-1 text-sm text-gray-500">
+                    You need to set up a cloud environment before we can visualize your architecture.
+                </p>
+                <div class="mt-6">
+                    <a href="{% url 'integrations:create' %}"
+                        class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                        <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"
+                            fill="currentColor">
+                            <path fill-rule="evenodd"
+                                d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                                clip-rule="evenodd" />
+                        </svg>
+                        Add Environment
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+        startOnLoad: true,
+        theme: 'default',
+        flowchart: {
+            useMaxWidth: true,
+            htmlLabels: true,
+            curve: 'basis'
+        }
+    });
+
+    window.showEnvironment = function (envId) {
+        // Hide all diagrams
+        document.querySelectorAll('.env-diagram').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.env-tab').forEach(el => {
+            el.classList.remove('text-white', 'bg-gray-700', 'border-b-2', 'border-indigo-500');
+            el.classList.add('text-gray-400');
+        });
+
+        // Show selected diagram
+        const diagram = document.getElementById('env-' + envId);
+        const tab = document.getElementById('tab-' + envId);
+
+        if (diagram && tab) {
+            diagram.classList.remove('hidden');
+            tab.classList.remove('text-gray-400');
+            tab.classList.add('text-white', 'bg-gray-700');
+        }
+    };
+
+    // Show first environment by default
+    {% if diagrams %}
+    let firstEnvShown = false;
+    {% for env_id in diagrams.keys %}
+    if (!firstEnvShown) {
+        showEnvironment({{ env_id }});
+    firstEnvShown = true;
+    }
+    {% endfor %}
+    {% endif %}
+</script>
+{% endblock %}

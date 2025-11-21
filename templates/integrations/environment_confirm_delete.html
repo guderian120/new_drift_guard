@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete Environment - DriftGuard{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-gray-800 shadow overflow-hidden sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6">
+            <h3 class="text-lg leading-6 font-medium text-white">Delete Environment</h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-400">Are you sure you want to delete this environment?</p>
+        </div>
+        <div class="border-t border-gray-700 px-4 py-5 sm:p-6">
+            <div class="bg-red-900 bg-opacity-20 border border-red-600 rounded-md p-4 mb-6">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-red-300">Warning</h3>
+                        <div class="mt-2 text-sm text-red-200">
+                            <p>This action cannot be undone. Deleting this environment will remove all associated
+                                credentials and configuration.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <dl class="divide-y divide-gray-700">
+                <div class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                    <dt class="text-sm font-medium text-gray-400">Environment Name</dt>
+                    <dd class="mt-1 text-sm text-white sm:mt-0 sm:col-span-2">{{ environment.name }}</dd>
+                </div>
+                <div class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                    <dt class="text-sm font-medium text-gray-400">Cloud Provider</dt>
+                    <dd class="mt-1 text-sm text-white sm:mt-0 sm:col-span-2">{{ environment.provider }}</dd>
+                </div>
+                <div class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                    <dt class="text-sm font-medium text-gray-400">IaC Repository</dt>
+                    <dd class="mt-1 text-sm text-white sm:mt-0 sm:col-span-2">{{ environment.iac_repo_url|default:"Not
+                        configured" }}</dd>
+                </div>
+                <div class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+                    <dt class="text-sm font-medium text-gray-400">Created</dt>
+                    <dd class="mt-1 text-sm text-white sm:mt-0 sm:col-span-2">{{ environment.created_at|date:"F d, Y
+                        H:i" }}</dd>
+                </div>
+            </dl>
+        </div>
+        <div class="border-t border-gray-700 px-4 py-4 sm:px-6 flex justify-end gap-3">
+            <a href="{% url 'integrations:list' %}"
+                class="inline-flex items-center px-4 py-2 border border-gray-600 text-sm font-medium rounded-md text-gray-300 bg-gray-700 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                Cancel
+            </a>
+            <form method="POST" class="inline">
+                {% csrf_token %}
+                <button type="submit"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                    <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete Environment
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

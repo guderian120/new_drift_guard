@@ -1,0 +1,143 @@
+
+{% block extra_js %}
+<style>
+    .typing-indicator span {
+        animation: blink 1.4s infinite both;
+        height: 5px;
+        width: 5px;
+        background-color: #9ca3af;
+        border-radius: 50%;
+        display: inline-block;
+        margin: 0 1px;
+    }
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink {
+        0% { opacity: 0.2; }
+        20% { opacity: 1; }
+        100% { opacity: 0.2; }
+    }
+</style>
+
+<script>
+console.log('[CHAT] Script loaded at', new Date().toISOString());
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('[CHAT] DOM loaded, searching for chat form');
+    
+    const chatForm = document.querySelector('form[hx-post*="chat"]');
+    console.log('[CHAT] Chat form element:', chatForm);
+    
+    if (!chatForm) {
+        console.error('[CHAT] ERROR: No chat form found! Selector used: form[hx-post*="chat"]');
+        console.log('[CHAT] All forms on page:', document.querySelectorAll('form'));
+        return;
+    }
+    
+    console.log('[CHAT] Chat form found successfully');
+    console.log('[CHAT] Form attributes:', {
+        'hx-post': chatForm.getAttribute('hx-post'),
+        'hx-target': chatForm.getAttribute('hx-target'),
+        'hx-swap': chatForm.getAttribute('hx-swap')
+    });
+    
+    chatForm.addEventListener('submit', function(e) {
+        console.log('[CHAT] ===== FORM SUBMIT EVENT FIRED =====');
+        console.log('[CHAT] Event object:', e);
+        console.log('[CHAT] Event type:', e.type);
+        console.log('[CHAT] Event target:', e.target);
+        
+        const input = this.querySelector('input[name="message"]');
+        console.log('[CHAT] Message input element:', input);
+        
+        if (!input) {
+            console.error('[CHAT] ERROR: Could not find message input!');
+            return;
+        }
+        
+        const msg = input.value.trim();
+        console.log('[CHAT] Message value:', msg);
+        console.log('[CHAT] Message length:', msg.length);
+        
+        if (!msg) {
+            console.log('[CHAT] Empty message, skipping UI update');
+            return;
+        }
+        
+        const chat = document.getElementById('chat-messages');
+        console.log('[CHAT] Chat container element:', chat);
+        
+        if (!chat) {
+            console.error('[CHAT] ERROR: Could not find chat-messages container!');
+            return;
+        }
+        
+        const escaped = msg.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        console.log('[CHAT] Escaped message:', escaped);
+        
+        // Add user message
+        console.log('[CHAT] Adding user message to DOM...');
+        const userMsgHTML = '<div class="flex items-end justify-end mb-4"><div class="bg-indigo-600 p-3 rounded-lg text-sm text-white max-w-xs">' + escaped + '</div><div class="flex-shrink-0 ml-3 bg-gray-600 rounded-full p-1"><svg class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg></div></div>';
+        
+        try {
+            chat.insertAdjacentHTML('beforeend', userMsgHTML);
+            console.log('[CHAT] ✓ User message added successfully');
+        } catch (err) {
+            console.error('[CHAT] ERROR adding user message:', err);
+        }
+        
+        // Add typing indicator
+        console.log('[CHAT] Adding typing indicator...');
+        const typingHTML = '<div class="flex items-start mb-4" id="typing-indicator"><div class="flex-shrink-0 bg-indigo-600 rounded-full p-1"><svg class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></div><div class="ml-3 bg-gray-700 p-3 rounded-lg text-sm text-gray-200"><div class="typing-indicator"><span></span><span></span><span></span></div></div></div>';
+        
+        try {
+            chat.insertAdjacentHTML('beforeend', typingHTML);
+            console.log('[CHAT] ✓ Typing indicator added successfully');
+        } catch (err) {
+            console.error('[CHAT] ERROR adding typing indicator:', err);
+        }
+        
+        console.log('[CHAT] Scrolling to bottom...');
+        chat.scrollTop = chat.scrollHeight;
+        console.log('[CHAT] Current scroll position:', chat.scrollTop, '/', chat.scrollHeight);
+        
+        console.log('[CHAT] ===== SUBMIT HANDLER COMPLETE =====');
+    });
+    
+    console.log('[CHAT] Submit event listener attached successfully');
+});
+
+document.body.addEventListener('htmx:beforeSwap', function(evt) {
+    console.log('[CHAT] htmx:beforeSwap event fired');
+    console.log('[CHAT] Target:', evt.detail.target);
+    console.log('[CHAT] Target ID:', evt.detail.target ? evt.detail.target.id : 'N/A');
+    
+    if (evt.detail.target && evt.detail.target.id === 'chat-messages') {
+        console.log('[CHAT] Removing typing indicator...');
+        const ind = document.getElementById('typing-indicator');
+        console.log('[CHAT] Typing indicator element:', ind);
+        
+        if (ind) {
+            ind.remove();
+            console.log('[CHAT] ✓ Typing indicator removed');
+        } else {
+            console.log('[CHAT] No typing indicator found to remove');
+        }
+    }
+});
+
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    console.log('[CHAT] htmx:afterSwap event fired');
+    console.log('[CHAT] Target:', evt.detail.target);
+    
+    if (evt.detail.target && evt.detail.target.id === 'chat-messages') {
+        const chat = document.getElementById('chat-messages');
+        console.log('[CHAT] Scrolling after swap...');
+        chat.scrollTop = chat.scrollHeight;
+        console.log('[CHAT] New scroll position:', chat.scrollTop, '/', chat.scrollHeight);
+    }
+});
+
+console.log('[CHAT] All event listeners registered');
+</script>
+{% endblock %}

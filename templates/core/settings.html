@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+
+{% block title %}Settings - DriftGuard{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="bg-gray-800 shadow sm:rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg leading-6 font-medium text-white">Application Settings</h3>
+            <div class="mt-2 max-w-xl text-sm text-gray-400">
+                <p>Configure external integrations and API keys.</p>
+            </div>
+
+            <form class="mt-5 space-y-6" action="" method="POST">
+                {% csrf_token %}
+
+                {% if form.errors %}
+                <div class="bg-red-900 text-red-200 p-4 rounded-md mb-4">
+                    {{ form.errors }}
+                </div>
+                {% endif %}
+
+                <!-- AI Configuration Section -->
+                <div class="border-b border-gray-700 pb-6">
+                    <h4 class="text-md font-medium text-white mb-4">🤖 AI Assistant Configuration</h4>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label for="{{ form.gemini_api_key.id_for_label }}"
+                                class="block text-sm font-medium text-gray-300">Google Gemini API Key</label>
+                            <div class="mt-1">
+                                {{ form.gemini_api_key }}
+                            </div>
+                            <p class="mt-2 text-sm text-gray-500">
+                                Required for the AI Chatbot assistant.
+                                <a href="https://aistudio.google.com/app/apikey" target="_blank"
+                                    class="text-indigo-400 hover:text-indigo-300">Get your API key here →</a>
+                            </p>
+                        </div>
+
+                        <div>
+                            <label for="{{ form.gemini_model.id_for_label }}"
+                                class="block text-sm font-medium text-gray-300">AI Model</label>
+                            <div class="mt-1">
+                                {{ form.gemini_model }}
+                            </div>
+                            <p class="mt-2 text-sm text-gray-500">
+                                Select which Gemini model to use. Flash models are faster, Pro models are more capable.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cloud Credentials Note -->
+                <div class="bg-blue-900 bg-opacity-20 border border-blue-700 rounded-md p-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd"
+                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                    clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-blue-300">Cloud Credentials</h3>
+                            <div class="mt-2 text-sm text-blue-200">
+                                <p>Cloud provider credentials (AWS, GCP, Azure) are now managed per-environment.
+                                    Configure them in <a href="{% url 'integrations:list' %}"
+                                        class="underline hover:text-blue-100">Environment Management</a>.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-5">
+                    <div class="flex justify-end">
+                        <button type="submit"
+                            class="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Save Configuration
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
