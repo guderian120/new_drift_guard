@@ -51,9 +51,20 @@ Please configure your Google Gemini API key in [Settings](/settings/) to use the
             - Expected State: {drift['expected_state']}
             - Actual State: {drift['actual_state']}
             
+            Change Initiator (Forensic Information):
+            - Initiated By: {drift.get('initiated_by_user', 'Unknown')}
+            - Email: {drift.get('initiated_by_email', 'Unknown')}
+            - Role/ARN: {drift.get('initiated_by_role', 'Unknown')}
+            - Change Timestamp: {drift.get('change_timestamp', 'Unknown')}
+            - Change Method: {drift.get('change_method', 'Unknown')} (console/CLI/API)
+            - Source IP: {drift.get('source_ip', 'Unknown')}
+            - Change Summary: {drift.get('change_summary', 'Not available')}
+            - Root Cause Category: {drift.get('root_cause_category', 'Unknown')}
+            
             User Question: {user_message}
             
-            Provide a concise, technical, and helpful response.
+            Provide a concise, technical, and helpful response. If the user asks about who made the change or why,
+            reference the forensic information above. Be specific about the change initiator and timeline.
             """
             
             response = client.models.generate_content(
@@ -126,4 +137,3 @@ If the problem continues, please contact support."""
         'ai_response': ai_response,
     }
     return render(request, 'chat/message_fragment.html', context)
-

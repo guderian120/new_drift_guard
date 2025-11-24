@@ -11,7 +11,7 @@
                 <p>{% if action == "Update" %}Update the environment configuration. Credentials will be validated.{%
                     else %}Configure a new cloud environment. Credentials will be validated immediately.{% endif %}</p>
             </div>
-            <form class="mt-5 space-y-6" method="POST">
+            <form class="mt-5 space-y-6" method="POST" data-loading>
                 {% csrf_token %}
 
                 {% if form.non_field_errors %}

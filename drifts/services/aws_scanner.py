@@ -25,42 +25,262 @@ class AWSScanner:
         )
         self.region = region
         
-    def scan_infrastructure(self) -> List[Dict[str, Any]]:
+    def scan_infrastructure(self, expected_state: Optional[Dict[str, List[Dict]]] = None) -> List[Dict[str, Any]]:
         """
         Scan AWS infrastructure and return detected drifts
+        
+        Args:
+            expected_state: Optional expected infrastructure state from IaC (Terraform)
+                           If provided, will compare actual vs expected state
         
         Returns:
             List of drift dictionaries with resource details
         """
         drifts = []
         
-        try:
-            # Scan EC2 instances
-            logger.info("Scanning EC2 instances...")
-            drifts.extend(self._scan_ec2_instances())
-        except Exception as e:
-            logger.error(f"Error scanning EC2: {str(e)}")
+        # If expected state is provided, do IaC-based drift detection
+        if expected_state:
+            logger.info("Performing IaC-based drift detection")
+            drifts.extend(self.compare_with_terraform(expected_state))
+        else:
+            # Fall back to policy violation checks
+            logger.info("Performing policy violation checks (no IaC comparison)")
+            
+            try:
+                # Scan EC2 instances
+                logger.info("Scanning EC2 instances...")
+                drifts.extend(self._scan_ec2_instances())
+            except Exception as e:
+                logger.error(f"Error scanning EC2: {str(e)}")
+            
+            try:
+                # Scan S3 buckets
+                logger.info("Scanning S3 buckets...")
+                drifts.extend(self._scan_s3_buckets())
+            except Exception as e:
+                logger.error(f"Error scanning S3: {str(e)}")
+            
+            try:
+                # Scan Security Groups
+                logger.info("Scanning Security Groups...")
+                drifts.extend(self._scan_security_groups())
+            except Exception as e:
+                logger.error(f"Error scanning Security Groups: {str(e)}")
+            
+            try:
+                # Scan RDS instances
+                logger.info("Scanning RDS instances...")
+                drifts.extend(self._scan_rds_instances())
+            except Exception as e:
+                logger.error(f"Error scanning RDS: {str(e)}")
+        
+        return drifts
+    
+    def compare_with_terraform(self, expected_state: Dict[str, List[Dict]]) -> List[Dict[str, Any]]:
+        """
+        Compare actual AWS infrastructure with expected state from Terraform
+        
+        Args:
+            expected_state: Expected infrastructure state from Terraform parser
+        
+        Returns:
+            List of detected drifts
+        """
+        drifts = []
+        
+        # Compare EC2 instances
+        if 'ec2_instances' in expected_state:
+            drifts.extend(self._compare_ec2_instances(expected_state['ec2_instances']))
+        
+        # Compare S3 buckets
+        if 's3_buckets' in expected_state:
+            drifts.extend(self._compare_s3_buckets(expected_state['s3_buckets']))
+        
+        # Compare Security Groups
+        if 'security_groups' in expected_state:
+            drifts.extend(self._compare_security_groups(expected_state['security_groups']))
+        
+        # Compare RDS instances
+        if 'rds_instances' in expected_state:
+            drifts.extend(self._compare_rds_instances(expected_state['rds_instances']))
+        
+        return drifts
+    
+    def _compare_ec2_instances(self, expected_instances: List[Dict]) -> List[Dict]:
+        """Compare actual EC2 instances with expected state from Terraform"""
+        ec2 = self.session.client('ec2')
+        drifts = []
         
         try:
-            # Scan S3 buckets
-            logger.info("Scanning S3 buckets...")
-            drifts.extend(self._scan_s3_buckets())
+            # Get all actual instances
+            response = ec2.describe_instances()
+            actual_instances = {}
+            
+            for reservation in response['Reservations']:
+                for instance in reservation['Instances']:
+                    if instance['State']['Name'] != 'terminated':
+                        instance_id = instance['InstanceId']
+                        tags = {tag['Key']: tag['Value'] for tag in instance.get('Tags', [])}
+                        name = tags.get('Name', instance_id)
+                        actual_instances[name] = instance
+            
+            # Check for missing instances (defined in Terraform but not in AWS)
+            for expected in expected_instances:
+                tf_name = expected['name']
+                expected_tags = expected.get('tags', {})
+                expected_name = expected_tags.get('Name', tf_name)
+                
+                if expected_name not in actual_instances:
+                    drifts.append({
+                        'resource_name': expected_name,
+                        'resource_type': 'aws_ec2_instance',
+                        'severity': 'high',
+                        'expected_state': expected,
+                        'actual_state': {'status': 'missing'},
+                        'description': f"EC2 instance '{expected_name}' is defined in Terraform but not found in AWS"
+                    })
+            
+            # Check for extra instances (in AWS but not in Terraform)
+            expected_names = {exp.get('tags', {}).get('Name', exp['name']) for exp in expected_instances}
+            for name, instance in actual_instances.items():
+                if name not in expected_names:
+                    drifts.append({
+                        'resource_name': name,
+                        'resource_type': 'aws_ec2_instance',
+                        'severity': 'medium',
+                        'expected_state': {'status': 'not_in_terraform'},
+                        'actual_state': {'instance_id': instance['InstanceId'], 'state': instance['State']['Name']},
+                        'description': f"EC2 instance '{name}' exists in AWS but is not defined in Terraform"
+                    })
+            
         except Exception as e:
-            logger.error(f"Error scanning S3: {str(e)}")
+            logger.error(f"Error comparing EC2 instances: {str(e)}")
+        
+        return drifts
+    
+    def _compare_s3_buckets(self, expected_buckets: List[Dict]) -> List[Dict]:
+        """Compare actual S3 buckets with expected state from Terraform"""
+        s3 = self.session.client('s3')
+        drifts = []
         
         try:
-            # Scan Security Groups
-            logger.info("Scanning Security Groups...")
-            drifts.extend(self._scan_security_groups())
+            # Get all actual buckets
+            response = s3.list_buckets()
+            actual_bucket_names = {bucket['Name'] for bucket in response.get('Buckets', [])}
+            
+            # Check for missing buckets
+            for expected in expected_buckets:
+                bucket_name = expected.get('bucket', expected['name'])
+                
+                if bucket_name not in actual_bucket_names:
+                    drifts.append({
+                        'resource_name': bucket_name,
+                        'resource_type': 'aws_s3_bucket',
+                        'severity': 'high',
+                        'expected_state': expected,
+                        'actual_state': {'status': 'missing'},
+                        'description': f"S3 bucket '{bucket_name}' is defined in Terraform but not found in AWS"
+                    })
+            
+            # Check for extra buckets
+            expected_bucket_names = {exp.get('bucket', exp['name']) for exp in expected_buckets}
+            for bucket_name in actual_bucket_names:
+                if bucket_name not in expected_bucket_names:
+                    drifts.append({
+                        'resource_name': bucket_name,
+                        'resource_type': 'aws_s3_bucket',
+                        'severity': 'medium',
+                        'expected_state': {'status': 'not_in_terraform'},
+                        'actual_state': {'bucket_name': bucket_name},
+                        'description': f"S3 bucket '{bucket_name}' exists in AWS but is not defined in Terraform"
+                    })
+            
         except Exception as e:
-            logger.error(f"Error scanning Security Groups: {str(e)}")
+            logger.error(f"Error comparing S3 buckets: {str(e)}")
+        
+        return drifts
+    
+    def _compare_security_groups(self, expected_sgs: List[Dict]) -> List[Dict]:
+        """Compare actual Security Groups with expected state from Terraform"""
+        ec2 = self.session.client('ec2')
+        drifts = []
         
         try:
-            # Scan RDS instances
-            logger.info("Scanning RDS instances...")
-            drifts.extend(self._scan_rds_instances())
+            # Get all actual security groups
+            response = ec2.describe_security_groups()
+            actual_sgs = {sg['GroupName']: sg for sg in response['SecurityGroups']}
+            
+            # Check for missing security groups
+            for expected in expected_sgs:
+                sg_name = expected.get('group_name', expected['name'])
+                
+                if sg_name not in actual_sgs:
+                    drifts.append({
+                        'resource_name': sg_name,
+                        'resource_type': 'aws_security_group',
+                        'severity': 'high',
+                        'expected_state': expected,
+                        'actual_state': {'status': 'missing'},
+                        'description': f"Security group '{sg_name}' is defined in Terraform but not found in AWS"
+                    })
+            
+            # Check for extra security groups (excluding default)
+            expected_sg_names = {exp.get('group_name', exp['name']) for exp in expected_sgs}
+            for sg_name, sg in actual_sgs.items():
+                if sg_name not in expected_sg_names and sg_name != 'default':
+                    drifts.append({
+                        'resource_name': sg_name,
+                        'resource_type': 'aws_security_group',
+                        'severity': 'medium',
+                        'expected_state': {'status': 'not_in_terraform'},
+                        'actual_state': {'group_id': sg['GroupId']},
+                        'description': f"Security group '{sg_name}' exists in AWS but is not defined in Terraform"
+                    })
+            
         except Exception as e:
-            logger.error(f"Error scanning RDS: {str(e)}")
+            logger.error(f"Error comparing security groups: {str(e)}")
+        
+        return drifts
+    
+    def _compare_rds_instances(self, expected_instances: List[Dict]) -> List[Dict]:
+        """Compare actual RDS instances with expected state from Terraform"""
+        rds = self.session.client('rds')
+        drifts = []
+        
+        try:
+            # Get all actual RDS instances
+            response = rds.describe_db_instances()
+            actual_instances = {db['DBInstanceIdentifier']: db for db in response.get('DBInstances', [])}
+            
+            # Check for missing RDS instances
+            for expected in expected_instances:
+                db_identifier = expected.get('identifier', expected['name'])
+                
+                if db_identifier not in actual_instances:
+                    drifts.append({
+                        'resource_name': db_identifier,
+                        'resource_type': 'aws_rds_instance',
+                        'severity': 'critical',
+                        'expected_state': expected,
+                        'actual_state': {'status': 'missing'},
+                        'description': f"RDS instance '{db_identifier}' is defined in Terraform but not found in AWS"
+                    })
+            
+            # Check for extra RDS instances
+            expected_identifiers = {exp.get('identifier', exp['name']) for exp in expected_instances}
+            for db_id, db in actual_instances.items():
+                if db_id not in expected_identifiers:
+                    drifts.append({
+                        'resource_name': db_id,
+                        'resource_type': 'aws_rds_instance',
+                        'severity': 'medium',
+                        'expected_state': {'status': 'not_in_terraform'},
+                        'actual_state': {'engine': db.get('Engine'), 'status': db.get('DBInstanceStatus')},
+                        'description': f"RDS instance '{db_id}' exists in AWS but is not defined in Terraform"
+                    })
+            
+        except Exception as e:
+            logger.error(f"Error comparing RDS instances: {str(e)}")
         
         return drifts
     

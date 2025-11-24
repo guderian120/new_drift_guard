@@ -13,6 +13,49 @@
         body {
             font-family: 'Inter', sans-serif;
         }
+
+        /* Spinner Animation */
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        /* Button loading state */
+        button.loading {
+            position: relative;
+            color: transparent !important;
+            pointer-events: none;
+        }
+
+        button.loading::after {
+            content: '';
+            position: absolute;
+            width: 1rem;
+            height: 1rem;
+            top: 50%;
+            left: 50%;
+            margin-left: -0.5rem;
+            margin-top: -0.5rem;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
     </style>
 </head>
 
@@ -77,6 +120,36 @@
             <p class="text-center text-gray-400 text-sm">&copy; 2025 DriftGuard. All rights reserved.</p>
         </div>
     </footer>
+
+    <script>
+        // Utility functions for button loading states
+        function setButtonLoading(button, isLoading = true) {
+            if (isLoading) {
+                button.classList.add('loading');
+                button.disabled = true;
+                button.dataset.originalText = button.innerHTML;
+            } else {
+                button.classList.remove('loading');
+                button.disabled = false;
+                if (button.dataset.originalText) {
+                    button.innerHTML = button.dataset.originalText;
+                }
+            }
+        }
+
+        // Auto-attach loading state to all forms with data-loading attribute
+        document.addEventListener('DOMContentLoaded', function () {
+            const formsWithLoading = document.querySelectorAll('form[data-loading]');
+            formsWithLoading.forEach(form => {
+                form.addEventListener('submit', function (e) {
+                    const submitButton = form.querySelector('button[type="submit"]');
+                    if (submitButton) {
+                        setButtonLoading(submitButton, true);
+                    }
+                });
+            });
+        });
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 

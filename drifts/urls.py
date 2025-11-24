@@ -8,4 +8,5 @@ urlpatterns = [
     path('<int:pk>/', views.drift_detail, name='detail'),
     path('<int:pk>/remediate/', views.remediate_drift, name='remediate'),
     path('scan/', views.scan_infrastructure, name='scan'),
+    path('scan/progress/<str:session_id>/', views.scan_progress_view, name='scan_progress'),
 ]

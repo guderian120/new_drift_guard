@@ -2,6 +2,9 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from .models import DriftEvent
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Mock data for initial UI verification since we can't run migrations easily
 MOCK_DRIFTS = [
@@ -148,66 +151,206 @@ def remediate_drift(request, pk):
 
 @login_required
 def scan_infrastructure(request):
-    """Scan real AWS infrastructure for configuration drifts"""
+    """Initiate infrastructure scan with progress tracking"""
+    from .scan_progress import create_scan_session
+    import threading
+    
+    # Create a new scan session
+    session_id = create_scan_session()
+    
+    # Start scan in background thread
+    thread = threading.Thread(target=_perform_scan, args=(session_id,))
+    thread.daemon = True
+    thread.start()
+    
+    # Redirect to progress page
+    return render(request, 'drifts/scan_progress.html', {'session_id': session_id})
+
+
+def _perform_scan(session_id: str):
+    """Perform the actual scan with progress tracking"""
     from django.utils import timezone
     from integrations.models import Environment
     from .services.aws_scanner import AWSScanner
+    from .services.terraform_parser import TerraformParser
+    from .scan_progress import get_scan_session
     
-    # Get all configured AWS environments
-    aws_environments = Environment.objects.filter(provider='AWS')
+    progress = get_scan_session(session_id)
+    if not progress:
+        return
     
-    if not aws_environments.exists():
-        messages.warning(request, "No AWS environments configured. Please add an AWS environment with valid credentials first.")
-        return redirect('drifts:list')
+    # Initialize steps
+    init_step = progress.add_step("Initializing Scan", "Preparing to scan cloud infrastructure")
+    progress.start_step(init_step)
     
-    all_drifts = []
-    scanned_envs = 0
-    
-    for env in aws_environments:
-        try:
-            # Initialize AWS scanner with environment credentials
-            scanner = AWSScanner(
-                access_key=env.aws_access_key,
-                secret_key=env.aws_secret_key
-            )
+    try:
+        # Get all configured AWS environments
+        aws_environments = Environment.objects.filter(provider='AWS')
+        
+        if not aws_environments.exists():
+            progress.error_step(init_step, "No AWS environments configured")
+            progress.complete_scan(0, 0)
+            return
+        
+        progress.add_log(init_step, f"Found {aws_environments.count()} AWS environment(s)", 'success')
+        progress.complete_step(init_step, {'Environments': aws_environments.count()})
+        
+        all_drifts = []
+        scanned_envs = 0
+        
+        for env in aws_environments:
+            env_step = progress.add_step(f"Scanning {env.name}", f"Processing environment: {env.name}")
+            progress.start_step(env_step)
             
-            # Scan infrastructure
-            drifts = scanner.scan_infrastructure()
-            
-            # Enrich each drift with forensic information and metadata
-            for drift in drifts:
-                # Try to get forensic info from CloudTrail
-                forensics = scanner.get_forensic_info(
-                    drift['resource_name'],
-                    drift['resource_type']
+            try:
+                # Initialize AWS scanner
+                progress.add_log(env_step, "Initializing AWS scanner...", 'info')
+                scanner = AWSScanner(
+                    access_key=env.aws_access_key,
+                    secret_key=env.aws_secret_key
                 )
-                drift.update(forensics)
+                progress.update_step_progress(env_step, 20)
                 
-                # Add metadata
-                drift['environment'] = env.name
-                drift['detected_at'] = timezone.now().strftime('%Y-%m-%d %H:%M:%S')
-                drift['id'] = len(MOCK_DRIFTS) + len(all_drifts) + 1
-                drift['status'] = 'active'
-                drift['cloud_provider'] = 'AWS'
-            
-            all_drifts.extend(drifts)
-            scanned_envs += 1
-            
-        except Exception as e:
-            messages.error(request, f"Error scanning environment '{env.name}': {str(e)}")
-            continue
-    
-    # Add detected drifts to the list (in production, save to database)
-    if all_drifts:
+                expected_state = None
+                
+                # If IaC repository is configured, parse it
+                if env.iac_repo_url:
+                    repo_step = progress.add_step("Cloning IaC Repository", f"Fetching Terraform files from {env.iac_repo_url}")
+                    progress.start_step(repo_step)
+                    
+                    try:
+                        progress.add_log(repo_step, f"Cloning repository: {env.iac_repo_url}", 'info')
+                        parser = TerraformParser(
+                            repo_url=env.iac_repo_url,
+                            repo_token=getattr(env, 'iac_repo_token', None)
+                        )
+                        progress.update_step_progress(repo_step, 30)
+                        
+                        progress.add_log(repo_step, "Repository cloned successfully", 'success')
+                        progress.update_step_progress(repo_step, 50)
+                        
+                        parse_step = progress.add_step("Parsing Terraform Files", "Extracting resource definitions")
+                        progress.start_step(parse_step)
+                        
+                        expected_state = parser.parse_repository()
+                        total_resources = sum(len(v) for v in expected_state.values())
+                        
+                        progress.add_log(parse_step, f"Found {total_resources} resource(s) in Terraform", 'success')
+                        progress.complete_step(parse_step, {'Resources Found': total_resources})
+                        progress.complete_step(repo_step, {'Status': 'Success'})
+                        
+                    except Exception as e:
+                        logger.error(f"Failed to parse Terraform repository: {str(e)}")
+                        progress.error_step(repo_step, f"Failed to parse repository: {str(e)}")
+                        progress.add_log(env_step, "Falling back to policy violation checks", 'warning')
+                else:
+                    progress.add_log(env_step, "No IaC repository configured - using policy checks", 'info')
+                
+                progress.update_step_progress(env_step, 50)
+                
+                # Scan infrastructure
+                scan_step = progress.add_step("Scanning AWS Resources", "Comparing actual vs expected state")
+                progress.start_step(scan_step)
+                
+                progress.add_log(scan_step, "Scanning EC2 instances...", 'info')
+                progress.update_step_progress(scan_step, 25)
+                
+                progress.add_log(scan_step, "Scanning S3 buckets...", 'info')
+                progress.update_step_progress(scan_step, 50)
+                
+                progress.add_log(scan_step, "Scanning Security Groups...", 'info')
+                progress.update_step_progress(scan_step, 75)
+                
+                drifts = scanner.scan_infrastructure(expected_state=expected_state)
+                
+                progress.add_log(scan_step, f"Found {len(drifts)} drift(s)", 'success' if len(drifts) == 0 else 'warning')
+                progress.complete_step(scan_step, {'Drifts Found': len(drifts)})
+                
+                # Enrich drifts with forensic information and metadata
+                if drifts:
+                    forensic_step = progress.add_step("Gathering Forensic Data", "Collecting change history from CloudTrail")
+                    progress.start_step(forensic_step)
+                    
+                    forensics_collected = 0
+                    for drift in drifts:
+                        # Try to get forensic info from CloudTrail
+                        try:
+                            progress.add_log(forensic_step, f"Checking CloudTrail for {drift['resource_name']}...", 'info')
+                            forensics = scanner.get_forensic_info(
+                                drift['resource_name'],
+                                drift['resource_type']
+                            )
+                            drift.update(forensics)
+                            forensics_collected += 1
+                        except Exception as e:
+                            logger.warning(f"Could not get forensics for {drift['resource_name']}: {str(e)}")
+                            # Add default forensic info
+                            drift.update({
+                                'initiated_by_user': 'Unknown',
+                                'change_timestamp': timezone.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                'change_method': 'unknown',
+                                'change_summary': 'Drift detected during infrastructure scan',
+                                'root_cause_category': 'unknown',
+                                'root_cause_analysis': 'CloudTrail data not available for this resource'
+                            })
+                        
+                        # Add metadata
+                        drift['environment'] = env.name
+                        drift['detected_at'] = timezone.now().strftime('%Y-%m-%d %H:%M:%S')
+                        drift['id'] = len(MOCK_DRIFTS) + len(all_drifts) + 1
+                        drift['status'] = 'active'
+                        drift['cloud_provider'] = 'AWS'
+                    
+                    progress.add_log(forensic_step, f"Collected forensic data for {forensics_collected}/{len(drifts)} drift(s)", 'success')
+                    progress.complete_step(forensic_step, {'Forensics Collected': forensics_collected})
+                else:
+                    # No drifts, just add metadata
+                    for drift in drifts:
+                        drift['environment'] = env.name
+                        drift['detected_at'] = timezone.now().strftime('%Y-%m-%d %H:%M:%S')
+                        drift['id'] = len(MOCK_DRIFTS) + len(all_drifts) + 1
+                        drift['status'] = 'active'
+                        drift['cloud_provider'] = 'AWS'
+                
+                all_drifts.extend(drifts)
+                scanned_envs += 1
+                
+                progress.complete_step(env_step, {
+                    'Drifts': len(drifts),
+                    'Status': 'Complete'
+                })
+                
+            except Exception as e:
+                logger.exception(f"Error scanning environment '{env.name}'")
+                progress.error_step(env_step, f"Error: {str(e)}")
+                continue
+        
+        # Add drifts to mock list
         for drift in all_drifts:
             MOCK_DRIFTS.insert(0, drift)
         
-        messages.success(request, f"Scanned {scanned_envs} environment(s). Found {len(all_drifts)} drift(s).")
-    else:
-        if scanned_envs > 0:
-            messages.success(request, f"Scanned {scanned_envs} environment(s). No drifts detected - infrastructure is compliant!")
-        else:
-            messages.warning(request, "No environments were successfully scanned. Please check your AWS credentials.")
-    
-    return redirect('drifts:list')
+        # Mark scan as complete
+        progress.complete_scan(len(all_drifts), scanned_envs)
+        
+    except Exception as e:
+        logger.exception("Fatal error during scan")
+        if init_step < len(progress.steps):
+            progress.error_step(init_step, f"Fatal error: {str(e)}")
+        progress.complete_scan(0, 0)
 
+
+@login_required
+def scan_progress_view(request, session_id):
+    """Return scan progress for HTMX polling"""
+    from .scan_progress import get_scan_session
+    
+    progress = get_scan_session(session_id)
+    if not progress:
+        return render(request, 'drifts/scan_progress_steps.html', {
+            'steps': [],
+            'scan_complete': True,
+            'total_drifts': 0,
+            'scanned_envs': 0
+        })
+    
+    return render(request, 'drifts/scan_progress_steps.html', progress.to_dict())

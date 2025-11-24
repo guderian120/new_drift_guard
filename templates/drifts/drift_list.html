@@ -9,7 +9,7 @@
             <h3 class="text-lg leading-6 font-medium text-white">Detected Drifts</h3>
             <p class="mt-1 max-w-2xl text-sm text-gray-400">List of all infrastructure drift events detected.</p>
         </div>
-        <form method="POST" action="{% url 'drifts:scan' %}">
+        <form method="POST" action="{% url 'drifts:scan' %}" data-loading>
             {% csrf_token %}
             <button type="submit"
                 class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
